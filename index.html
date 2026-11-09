@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Шанс найти монету из сундука / Chest coin chance</title>
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --wood-dark: #3b2314;
+    --wood: #5c3a1e;
+    --leather: #7a4a25;
+    --parchment: #f4e4bc;
+    --parchment-dark: #e6cf96;
+    --gold: #d4a017;
+    --gold-light: #f3c94a;
+    --ink: #2b1a0e;
+    --crimson: #8b1e1e;
+  }
+  body {
+    font-family: "IM Fell English", Georgia, "Times New Roman", serif;
+    margin: 0;
+    padding: 24px;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.45) 100%),
+      repeating-linear-gradient(90deg, #4a2c16 0 6px, #3b2314 6px 14px);
+    color: var(--ink);
+  }
+  .card {
+    max-width: 960px;
+    margin: 0 auto;
+    background:
+      radial-gradient(circle at 20% 15%, rgba(255,255,255,0.25), transparent 40%),
+      linear-gradient(180deg, var(--parchment), var(--parchment-dark));
+    border: 4px solid var(--gold);
+    outline: 2px solid var(--leather);
+    outline-offset: 4px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5), inset 0 0 40px rgba(122,74,37,0.35);
+    padding: 28px;
+  }
+  .top {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+  }
+  .lang-btn {
+    font-family: "IM Fell English", Georgia, serif;
+    border: 2px solid var(--wood);
+    background: linear-gradient(180deg, var(--leather), var(--wood));
+    color: var(--gold-light);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--wood-dark);
+  }
+  .lang-btn:hover { filter: brightness(1.15); }
+  h1 {
+    font-family: "Pirata One", Georgia, serif;
+    font-size: 40px;
+    font-weight: normal;
+    margin: 0 0 4px;
+    color: var(--wood-dark);
+    text-shadow: 1px 2px 0 var(--gold-light);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  .sub {
+    color: var(--wood);
+    font-size: 16px;
+    font-style: italic;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .switcher {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+  .switcher button {
+    font-family: "IM Fell English", Georgia, serif;
+    border: 2px solid var(--gold);
+    background: linear-gradient(180deg, var(--leather), var(--wood));
+    color: var(--gold-light);
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--wood-dark), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  .switcher button:hover { filter: brightness(1.15); }
+  .switcher button.active {
+    background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    color: var(--wood-dark);
+    font-weight: bold;
+    border-color: var(--wood-dark);
+  }
+  .chart-wrap {
+    position: relative;
+    height: 480px;
+    background: rgba(255,250,235,0.5);
+    border: 2px dashed var(--leather);
+    border-radius: 8px;
+    padding: 8px;
+  }
+  .fact {
+    max-width: 960px;
+    margin: 20px auto 0;
+    background:
+      linear-gradient(180deg, var(--parchment), var(--parchment-dark));
+    border: 3px solid var(--wood);
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+    padding: 18px 22px;
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  .fact .label {
+    font-family: "Pirata One", Georgia, serif;
+    color: var(--crimson);
+    font-size: 24px;
+    margin-bottom: 6px;
+  }
+  .fact .prob { margin-top: 10px; color: var(--wood); font-size: 16px; }
+  .fact .prob b { color: var(--crimson); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">
+    <button class="lang-btn" id="langBtn">English</button>
+  </div>
+  <h1 id="title"></h1>
+  <div class="sub" id="sub"></div>
+
+  <div class="switcher">
+    <button data-index="0" class="active" id="btn0"></button>
+    <button data-index="1" id="btn1"></button>
+    <button data-index="2" id="btn2"></button>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="chart"></canvas>
+  </div>
+</div>
+
+<div class="fact" id="fact">
+  <div class="label" id="factLabel"></div>
+  <div id="factText"></div>
+  <div class="prob" id="factProb"></div>
+</div>
+
+<script>
+  const p = 1 / 137000;
+
+  // Крупный и плотный шрифт для подписей на графике и во всплывающих подсказках
+  Chart.defaults.font = {
+    family: "'Pirata One', Georgia, serif",
+    size: 20,
+    weight: 'normal'
+  };
+  Chart.defaults.color = '#3b2314';
+
+  // Варианты графика: максимум открытий и шаг точек
+  const ranges = [
+    { maxN: 500000, step: 1000 },
+    { maxN: 50000,  step: 100 },
+    { maxN: 5000,   step: 10 }
+  ];
+
+  // Тексты интерфейса
+  const T = {
+    ru: {
+      title: "Сундук сокровищ: шанс найти монету",
+      sub: "Вероятность выпадения монеты при одном открытии сундука: 1 / 137 000. Ось X: количество открытий сундука, в тысячах.",
+      btns: ["До 500 тыс. открытий", "До 50 тыс. открытий", "До 5 тыс. открытий"],
+      factLabel: "Интересный факт",
+      hint: "Нажмите на точку графика, чтобы увидеть факт про такую же вероятность.",
+      zero: "Пока ни одного открытия — шанс 0%. Нажмите на точку правее.",
+      none: "Для этой точки подходящего факта нет.",
+      probLabel: "Вероятность: ",
+      axisX: "Количество открытий сундука, тыс.",
+      axisY: "Шанс найти монету, %",
+      dataset: "Шанс найти хотя бы одну монету, %",
+      markerDs: "Вероятность из факта",
+      tipTitle: n => "Открыто сундуков: " + n + " тыс.",
+      tipLabel: "Шанс: ",
+      locale: "ru-RU",
+      decimalSep: ","
+    },
+    en: {
+      title: "Treasure chest: the chance to find a coin",
+      sub: "Chance of a coin per chest opening: 1 / 137,000. X axis: number of chest openings, in thousands.",
+      btns: ["Up to 500K openings", "Up to 50K openings", "Up to 5K openings"],
+      factLabel: "Interesting fact",
+      hint: "Click a point on the chart to see a fact with a similar probability.",
+      zero: "No openings yet — 0% chance. Click a point further right.",
+      none: "No suitable fact for this point.",
+      probLabel: "Probability: ",
+      axisX: "Number of chest openings, thousands",
+      axisY: "Chance to find a coin, %",
+      dataset: "Chance of at least one coin, %",
+      markerDs: "Probability from the fact",
+      tipTitle: n => "Chests opened: " + n + " thousand",
+      tipLabel: "Chance: ",
+      locale: "en-US",
+      decimalSep: "."
+    }
+  };
+
+  // Факты: p — вероятность в процентах; pl и t — тексты на русском и английском
+  const facts = [
+    { p: 0.000763,   pl: { ru: "0,00076% (1 к 131 072)", en: "0.00076% (1 in 131,072)" },
+      t: { ru: "Выпасть 17 орлов подряд при 17 бросках монеты — примерно такой же шанс, как найти монету за одно открытие сундука.",
+           en: "17 heads in a row in 17 coin flips — about the same odds as finding a coin in one chest opening." } },
+    { p: 0.0000954,  pl: { ru: "0,0000954% (1 к 1 048 576)", en: "0.0000954% (1 in 1,048,576)" },
+      t: { ru: "Выпасть 20 орлов подряд при 20 бросках монеты.", en: "20 heads in a row in 20 coin flips." } },
+    { p: 0.00305,    pl: { ru: "0,003% (1 к 32 768)", en: "0.003% (1 in 32,768)" },
+      t: { ru: "Выпасть 15 орлов подряд при 15 бросках монеты.", en: "15 heads in a row in 15 coin flips." } },
+    { p: 0.00000298, pl: { ru: "0,000003% (1 к 33 554 432)", en: "0.000003% (1 in 33,554,432)" },
+      t: { ru: "Выпасть 25 орлов подряд при 25 бросках монеты.", en: "25 heads in a row in 25 coin flips." } },
+    { p: 0.0977,     pl: { ru: "0,098% (1 к 1024)", en: "0.098% (1 in 1,024)" },
+      t: { ru: "Выпасть 10 орлов подряд при 10 бросках монеты.", en: "10 heads in a row in 10 coin flips." } },
+    { p: 0.390625,   pl: { ru: "0,39% (1 к 256)", en: "0.39% (1 in 256)" },
+      t: { ru: "Выпасть восемь орлов подряд при восьми бросках монеты.", en: "8 heads in a row in 8 coin flips." } },
+    { p: 0.78125,    pl: { ru: "0,78% (1 к 128)", en: "0.78% (1 in 128)" },
+      t: { ru: "Выпасть семь орлов подряд при семи бросках монеты.", en: "7 heads in a row in 7 coin flips." } },
+    { p: 1.5625,     pl: { ru: "1,56% (1 к 64)", en: "1.56% (1 in 64)" },
+      t: { ru: "Выпасть шесть орлов подряд при шести бросках монеты.", en: "6 heads in a row in 6 coin flips." } },
+    { p: 3.125,      pl: { ru: "3,125% (1 к 32)", en: "3.125% (1 in 32)" },
+      t: { ru: "Выпасть пять орлов подряд при пяти бросках монеты.", en: "5 heads in a row in 5 coin flips." } },
+    { p: 6.25,       pl: { ru: "6,25% (1 к 16)", en: "6.25% (1 in 16)" },
+      t: { ru: "Выпасть четыре орла подряд при четырёх бросках монеты.", en: "4 heads in a row in 4 coin flips." } },
+    { p: 12.5,       pl: { ru: "12,5% (1 к 8)", en: "12.5% (1 in 8)" },
+      t: { ru: "Выпасть три орла подряд при трёх бросках монеты.", en: "3 heads in a row in 3 coin flips." } },
+    { p: 25,         pl: { ru: "25% (1 к 4)", en: "25% (1 in 4)" },
+      t: { ru: "Выпасть два орла подряд при двух бросках монеты.", en: "2 heads in a row in 2 coin flips." } },
+    { p: 0.00654,    pl: { ru: "около 0,0065% (1 к 15 300)", en: "about 0.0065% (1 in 15,300)" },
+      t: { ru: "Быть поражённым молнией за всю жизнь (оценка для США).",
+           en: "Being struck by lightning at some point in a lifetime (estimate for the USA)." } },
+    { p: 0.008,      pl: { ru: "около 0,008% (1 к 12 500)", en: "about 0.008% (1 in 12,500)" },
+      t: { ru: "Любитель сыграет хол-ин-уан с одного удара (оценка).",
+           en: "An amateur golfer makes a hole-in-one with a single swing (estimate)." } },
+    { p: 0.01,       pl: { ru: "около 0,01% (1 к 10 000)", en: "about 0.01% (1 in 10,000)" },
+      t: { ru: "Найти четырёхлистный клевер (оценка).", en: "Finding a four-leaf clover (estimate)." } },
+    { p: 0.01,       pl: { ru: "около 0,01% (1 к 10 000)", en: "about 0.01% (1 in 10,000)" },
+      t: { ru: "Угадать 4-значный PIN-код с первой попытки.", en: "Guessing a 4-digit PIN on the first try." } },
+    { p: 0.000001,   pl: { ru: "0,000001% (1 к 100 млн)", en: "0.000001% (1 in 100 million)" },
+      t: { ru: "Угадать 8-значный цифровой код с первой попытки.", en: "Guessing an 8-digit numeric code on the first try." } },
+    { p: 0.000154,   pl: { ru: "0,00015% (1 к 649 740)", en: "0.00015% (1 in 649,740)" },
+      t: { ru: "Получить флеш-рояль в покере с пяти карт.", en: "Getting a royal flush from five cards in poker." } },
+    { p: 0.0000123,  pl: { ru: "0,0000123% (1 к 8 145 060)", en: "0.0000123% (1 in 8,145,060)" },
+      t: { ru: "Угадать 6 номеров из 45 в лотерее «Гослото».",
+           en: "Matching all 6 numbers out of 45 in the Russian Gosloto lottery." } },
+    { p: 0.00000715, pl: { ru: "0,0000072% (1 к 13 983 816)", en: "0.0000072% (1 in 13,983,816)" },
+      t: { ru: "Угадать 6 номеров из 49 в лотерее.", en: "Matching all 6 numbers out of 49 in a lottery." } },
+    { p: 0.000265,   pl: { ru: "0,00027% (1 к 376 992)", en: "0.00027% (1 in 376,992)" },
+      t: { ru: "Угадать 5 номеров из 36 в лотерее.", en: "Matching 5 numbers out of 36 in a lottery." } },
+    { p: 0.00000072, pl: { ru: "0,0000007% (1 к 139 838 160)", en: "0.0000007% (1 in 139,838,160)" },
+      t: { ru: "Выиграть джекпот в Евромиллионах с одного билета.",
+           en: "Winning the EuroMillions jackpot with a single ticket." } },
+    { p: 0.000009,   pl: { ru: "около 0,000009% (1 к 11 млн)", en: "about 0.000009% (1 in 11 million)" },
+      t: { ru: "По оценкам, погибнуть в авиакатастрофе за один перелёт.",
+           en: "Dying in a plane crash on a single flight (estimate)." } },
+    { p: 0.024,      pl: { ru: "около 0,024% (1 к 4165)", en: "about 0.024% (1 in 4,165)" },
+      t: { ru: "Собрать каре в покере с пяти карт.", en: "Getting four of a kind from five cards in poker." } },
+    { p: 0.0684,     pl: { ru: "около 0,07% (1 к 1461)", en: "about 0.07% (1 in 1,461)" },
+      t: { ru: "Родиться 29 февраля.", en: "Being born on February 29." } },
+    { p: 0.144,      pl: { ru: "около 0,14% (1 к 694)", en: "about 0.14% (1 in 694)" },
+      t: { ru: "Собрать фулл-хаус в покере с пяти карт.", en: "Getting a full house from five cards in poker." } },
+    { p: 0.198,      pl: { ru: "около 0,2% (1 к 505)", en: "about 0.2% (1 in 505)" },
+      t: { ru: "Собрать флеш (пять карт одной масти) в покере с пяти карт.",
+           en: "Getting a flush (five cards of one suit) from five cards in poker." } },
+    { p: 0.392,      pl: { ru: "около 0,39% (1 к 255)", en: "about 0.39% (1 in 255)" },
+      t: { ru: "Собрать стрит (пять карт по порядку) в покере с пяти карт.",
+           en: "Getting a straight (five cards in sequence) from five cards in poker." } },
+    { p: 0.45,       pl: { ru: "около 0,45% (1 к 221)", en: "about 0.45% (1 in 221)" },
+      t: { ru: "Получить пару тузов на руки в Техасском холдеме.",
+           en: "Being dealt a pair of aces in Texas hold'em." } },
+    { p: 0.463,      pl: { ru: "около 0,46% (1 к 216)", en: "about 0.46% (1 in 216)" },
+      t: { ru: "Выбросить три шестёрки при броске трёх кубиков.", en: "Rolling three sixes with three dice." } },
+    { p: 1.92,       pl: { ru: "около 1,92% (1 к 52)", en: "about 1.92% (1 in 52)" },
+      t: { ru: "Угадать одну карту из колоды в 52 карты.", en: "Guessing one card from a 52-card deck." } },
+    { p: 2.7,        pl: { ru: "около 2,7% (1 к 37)", en: "about 2.7% (1 in 37)" },
+      t: { ru: "Угадать одно число в европейской рулетке.", en: "Guessing one number on a European roulette wheel." } },
+    { p: 2.78,       pl: { ru: "около 2,78% (1 к 36)", en: "about 2.78% (1 in 36)" },
+      t: { ru: "Выбросить двух шестёрок при броске двух кубиков.", en: "Rolling two sixes with two dice." } },
+    { p: 4.83,       pl: { ru: "около 4,83% (32 из 663)", en: "about 4.83% (32 in 663)" },
+      t: { ru: "Получить блэкджек (туз и десятку) в первой раздаче.",
+           en: "Getting blackjack (an ace and a ten) on the first deal." } },
+    { p: 5,          pl: { ru: "5% (1 к 20)", en: "5% (1 in 20)" },
+      t: { ru: "Выбросить 20 на двадцатигранном кубике.", en: "Rolling a 20 on a twenty-sided die." } },
+    { p: 10,         pl: { ru: "около 10% (1 из 10)", en: "about 10% (1 in 10)" },
+      t: { ru: "Случайный человек окажется левшой (примерно).", en: "A random person being left-handed (approximately)." } },
+    { p: 16.67,      pl: { ru: "около 16,7% (1 к 6)", en: "about 16.7% (1 in 6)" },
+      t: { ru: "Выбросить сумму 7 при броске двух кубиков.", en: "Rolling a total of 7 with two dice." } },
+    { p: 50.73,      pl: { ru: "около 50,7%", en: "about 50.7%" },
+      t: { ru: "В группе из 23 человек найдутся двое с одним днём рождения.",
+           en: "In a group of 23 people, two share a birthday." } },
+    { p: 51.8,       pl: { ru: "около 51,8%", en: "about 51.8%" },
+      t: { ru: "Выбросить хотя бы одну шестёрку за четыре броска кубика.",
+           en: "Rolling at least one six in four throws of a die." } },
+    { p: 66.67,      pl: { ru: "около 66,7% (2/3)", en: "about 66.7% (2/3)" },
+      t: { ru: "В задаче Монти Холла при смене выбора двери шанс выиграть.",
+           en: "In the Monty Hall problem, the chance of winning by switching doors." } },
+    { p: 70.63,      pl: { ru: "около 70,6%", en: "about 70.6%" },
+      t: { ru: "В группе из 30 человек найдутся двое с одним днём рождения.",
+           en: "In a group of 30 people, two share a birthday." } },
+    { p: 89.12,      pl: { ru: "около 89,1%", en: "about 89.1%" },
+      t: { ru: "В группе из 40 человек найдутся двое с одним днём рождения.",
+           en: "In a group of 40 people, two share a birthday." } },
+    { p: 99.01,      pl: { ru: "около 99%", en: "about 99%" },
+      t: { ru: "В группе из 57 человек найдутся двое с одним днём рождения.",
+           en: "In a group of 57 people, two share a birthday." } },
+    { p: 99.9,       pl: { ru: "около 99,9%", en: "about 99.9%" },
+      t: { ru: "В группе из 70 человек найдутся двое с одним днём рождения.",
+           en: "In a group of 70 people, two share a birthday." } }
+  ];
+
+  let lang = 'ru';
+
+  // Число открытий в тысячах (с учётом языка)
+  const fmtThousands = n => (n / 1000).toLocaleString(T[lang].locale, { maximumFractionDigits: 2 });
+
+  // Проценты с нужным десятичным разделителем
+  const fmtPct = v => v.toFixed(2).replace('.', T[lang].decimalSep);
+
+  // Вероятность в процентах при n открытиях
+  const chancePercent = n => (1 - Math.pow(1 - p, n)) * 100;
+
+  // Сколько открытий нужно, чтобы получить заданную вероятность (в процентах)
+  const openingsFor = percent => Math.log(1 - percent / 100) / Math.log(1 - p);
+
+  function buildData(range) {
+    const data = [];
+    for (let n = 0; n <= range.maxN; n += range.step) {
+      data.push({ x: n, y: +chancePercent(n).toFixed(4) });
+    }
+    return data;
+  }
+
+  // Выбор факта: ближайший по вероятности (по логарифмической шкале) среди тех,
+  // что помещаются в текущий диапазон графика
+  function pickFact(percent, maxN) {
+    if (percent <= 0) return null;
+    const target = Math.log10(percent);
+    let best = null;
+    for (const f of facts) {
+      const n = openingsFor(f.p);
+      if (!(n > 0 && n <= maxN)) continue;
+      const d = Math.abs(Math.log10(f.p) - target);
+      if (!best || d < best.d) best = { f, n, d };
+    }
+    return best;
+  }
+
+  const factText = document.getElementById('factText');
+  const factProb = document.getElementById('factProb');
+  const factLabel = document.getElementById('factLabel');
+
+  // Текущее состояние блока факта, чтобы переотрисовать его при смене языка
+  let factState = { mode: 'hint' };
+
+  function renderFact() {
+    const t = T[lang];
+    factLabel.textContent = t.factLabel;
+    if (factState.mode === 'hint') {
+      factText.textContent = t.hint;
+      factProb.innerHTML = "";
+    } else if (factState.mode === 'zero') {
+      factText.textContent = t.zero;
+      factProb.innerHTML = "";
+    } else if (factState.mode === 'none') {
+      factText.textContent = t.none;
+      factProb.innerHTML = "";
+    } else if (factState.mode === 'fact') {
+      factText.textContent = factState.pick.f.t[lang];
+      factProb.innerHTML = t.probLabel + "<b>" + factState.pick.f.pl[lang] + "</b>";
+    }
+  }
+
+  function applyLanguage() {
+    const t = T[lang];
+    document.documentElement.lang = lang;
+    document.getElementById('title').textContent = t.title;
+    document.title = t.title;
+    document.getElementById('sub').textContent = t.sub;
+    document.getElementById('langBtn').textContent = lang === 'ru' ? 'English' : 'Русский';
+    t.btns.forEach((txt, i) => { document.getElementById('btn' + i).textContent = txt; });
+
+    chart.data.datasets[0].label = t.dataset;
+    chart.data.datasets[1].label = t.markerDs;
+    chart.options.scales.x.title.text = t.axisX;
+    chart.options.scales.y.title.text = t.axisY;
+    chart.update();
+
+    renderFact();
+  }
+
+  const chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: T.ru.dataset,
+          data: buildData(ranges[0]),
+          borderColor: '#b8860b',
+          backgroundColor: 'rgba(212,160,23,0.3)',
+          fill: true,
+          borderWidth: 3,
+          pointRadius: 0,
+          tension: 0.2
+        },
+        {
+          label: T.ru.markerDs,
+          data: [],
+          showLine: false,
+          pointRadius: 5,
+          pointBackgroundColor: '#8b1e1e',
+          pointBorderColor: '#f3c94a',
+          pointBorderWidth: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      parsing: false,
+      interaction: { mode: 'index', intersect: false },
+      onClick: (evt, elements, chart) => {
+        const el = elements.find(e => e.datasetIndex === 0);
+        if (!el) return;
+        const point = chart.data.datasets[0].data[el.index];
+        const maxN = chart.options.scales.x.max;
+
+        if (point.y <= 0) {
+          factState = { mode: 'zero' };
+          chart.data.datasets[1].data = [];
+          chart.update();
+          renderFact();
+          return;
+        }
+
+        const pick = pickFact(point.y, maxN);
+        if (!pick) {
+          factState = { mode: 'none' };
+          chart.data.datasets[1].data = [];
+          chart.update();
+          renderFact();
+          return;
+        }
+
+        factState = { mode: 'fact', pick };
+        chart.data.datasets[1].data = [{ x: pick.n, y: pick.f.p }];
+        chart.update();
+        renderFact();
+      },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#2b1a0e',
+            font: { family: 'IM Fell English, Georgia, serif', size: 14 },
+            filter: item => item.datasetIndex === 0
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(59,35,20,0.92)',
+          titleColor: '#f3c94a',
+          bodyColor: '#f4e4bc',
+          borderColor: '#d4a017',
+          borderWidth: 1,
+          callbacks: {
+            title: items => T[lang].tipTitle(fmtThousands(items[0].parsed.x)),
+            label: ctx => T[lang].tipLabel + fmtPct(ctx.parsed.y) + '%'
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: ranges[0].maxN,
+          title: { display: true, text: T.ru.axisX, color: '#3b2314', font: { family: 'IM Fell English, Georgia, serif', size: 14 } },
+          ticks: {
+            maxTicksLimit: 11,
+            color: '#3b2314',
+            callback: value => fmtThousands(value)
+          },
+          grid: { color: 'rgba(92,58,30,0.2)' }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          title: { display: true, text: T.ru.axisY, color: '#3b2314', font: { family: 'IM Fell English, Georgia, serif', size: 14 } },
+          ticks: { color: '#3b2314', callback: v => v + '%' },
+          grid: { color: 'rgba(92,58,30,0.2)' }
+        }
+      }
+    }
+  });
+
+  // Переключение диапазона графика
+  let currentRange = 0;
+  document.querySelectorAll('.switcher button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentRange = Number(btn.dataset.index);
+      const range = ranges[currentRange];
+      chart.data.datasets[0].data = buildData(range);
+      chart.data.datasets[1].data = [];
+      chart.options.scales.x.max = range.maxN;
+      chart.update();
+      factState = { mode: 'hint' };
+      renderFact();
+      document.querySelectorAll('.switcher button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Переключение языка
+  document.getElementById('langBtn').addEventListener('click', () => {
+    lang = lang === 'ru' ? 'en' : 'ru';
+    applyLanguage();
+  });
+
+  applyLanguage();
+</script>
+</body>
+</html>
